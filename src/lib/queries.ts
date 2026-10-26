@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 import { db } from "@/lib/db";
 import { CATEGORY_LABELS } from "@/lib/categories";
 import { createClient } from "@/lib/supabase/server";
@@ -17,6 +18,8 @@ export type ProductSummary = {
 };
 
 const getUser = cache(async () => {
+  // Session loading reads the clock, so this must run at request time, never during prerender.
+  await connection();
   const supabase = await createClient();
   const {
     data: { user },
