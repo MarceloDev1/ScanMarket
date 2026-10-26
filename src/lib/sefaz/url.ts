@@ -12,6 +12,8 @@ export class SefazError extends Error {
 // (e.g. www.fazenda.pr.gov.br). Anything else is rejected so the server can't be used to
 // fetch arbitrary URLs.
 const SEFAZ_HOST = /\.gov\.br$/i;
+// URL.port is "" for the default port (443 on https).
+const ALLOWED_PORTS = new Set(["", "444"]);
 
 export function assertSefazUrl(raw: string): URL {
   let url: URL;
@@ -20,8 +22,12 @@ export function assertSefazUrl(raw: string): URL {
   } catch {
     throw new SefazError("URL inválida.", "INVALID_URL");
   }
-  if (url.protocol !== "https:" || url.port !== "" || url.username || url.password) {
+  if (url.protocol !== "https:" || url.username || url.password) {
     throw new SefazError("A URL da nota precisa ser https e sem credenciais.", "INVALID_URL");
+  }
+  // Some states serve the consultation page on 444 (e.g. nfce.sefaz.pe.gov.br:444).
+  if (!ALLOWED_PORTS.has(url.port)) {
+    throw new SefazError("A URL da nota usa uma porta não permitida.", "INVALID_URL");
   }
   if (!SEFAZ_HOST.test(url.hostname)) {
     throw new SefazError("Esse endereço não é de uma consulta de NFC-e da SEFAZ.", "INVALID_URL");
