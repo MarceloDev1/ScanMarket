@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { DuplicateReceiptError, saveReceipt } from "@/lib/receipts";
 import { fetchSefazPage } from "@/lib/sefaz/fetch";
-import { parseNfceHtml } from "@/lib/sefaz/parser";
+import { parseNfce } from "@/lib/sefaz/parser";
 import { scanRequestSchema } from "@/lib/sefaz/schema";
 import { assertSefazUrl, SefazError } from "@/lib/sefaz/url";
 
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
   try {
     const url = assertSefazUrl(body.data.url);
     const html = await fetchSefazPage(url.toString());
-    const parsed = parseNfceHtml(html, url);
+    const parsed = parseNfce(html, url);
     const receipt = await saveReceipt(user.id, url.toString(), parsed);
 
     return NextResponse.json(

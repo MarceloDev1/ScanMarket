@@ -21,12 +21,73 @@ export function parseBrDate(text: string): Date | null {
 
 const clean = (text: string) => text.replace(/\s+/g, " ").trim();
 
+const parseFailed = (error: { issues: { path: PropertyKey[]; message: string }[] }) => {
+  const problems = error.issues.map((i) => i.path.join(".") || i.message).join(", ");
+  return new SefazError(
+    `Não consegui ler esta nota (campos com problema: ${problems}). O layout da SEFAZ do seu estado pode ser diferente.`,
+    "PARSE_FAILED",
+  );
+};
+
+/** XML decimals use a dot ("15.6900000000"), unlike the Brazilian-formatted HTML pages. */
+const xmlNumber = (text: string | undefined) => {
+  const value = Number(text);
+  return text?.trim() && Number.isFinite(value) ? value : null;
+};
+
 /**
- * Parses the public NFC-e consultation page. Most states share the same markup
- * (`#tabResult`, `.txtTit`, `.Rqtd`, `.RUN`, `.RvlUnit`, `.valor`); layouts that differ
- * fail with PARSE_FAILED instead of saving partial data.
+ * Some states (e.g. PE) answer the QR Code URL with the NF-e XML itself. The buyer's CPF
+ * (`dest`) is present in that XML and is deliberately never read.
  */
-export function parseNfceHtml(html: string, sourceUrl: URL): ParsedReceipt {
+function parseNfceXml(xml: string): ParsedReceipt {
+  const $ = cheerio.load(xml, { xmlMode: true });
+  const text = (selector: string) => $(selector).first().text().trim();
+
+  const items = $("det")
+    .toArray()
+    .flatMap((det) => {
+      const $prod = $(det).children("prod");
+      const description = clean($prod.children("xProd").text());
+      const quantity = xmlNumber($prod.children("qCom").text());
+      const unitPrice = xmlNumber($prod.children("vUnCom").text());
+      const gross = xmlNumber($prod.children("vProd").text());
+      if (!description || quantity === null || unitPrice === null || gross === null) return [];
+      const discount = xmlNumber($prod.children("vDesc").text()) ?? 0;
+      return [
+        {
+          description,
+          quantity,
+          unit: $prod.children("uCom").text().trim() || "UN",
+          unitPrice,
+          totalPrice: Math.round((gross - discount) * 100) / 100,
+        },
+      ];
+    });
+
+  const result = parsedReceiptSchema.safeParse({
+    accessKey: ($("infNFe").attr("Id") ?? "").replace(/^NFe/, ""),
+    storeName: text("emit > xFant") || text("emit > xNome"),
+    cnpj: text("emit > CNPJ"),
+    issuedAt: new Date(text("ide > dhEmi")),
+    totalAmount: xmlNumber(text("total > ICMSTot > vNF")),
+    taxAmount: xmlNumber(text("total > ICMSTot > vTotTrib")),
+    items,
+  });
+  if (!result.success) throw parseFailed(result.error);
+  return result.data;
+}
+
+/**
+ * Parses the public NFC-e consultation response. Accepts the NF-e XML some states return,
+ * or the HTML page most states share (`#tabResult`, `.txtTit`, `.Rqtd`, `.RUN`, `.RvlUnit`,
+ * `.valor`); layouts that differ fail with PARSE_FAILED instead of saving partial data.
+ */
+export function parseNfce(content: string, sourceUrl: URL): ParsedReceipt {
+  if (/^\s*<\?xml|<NFe[\s>]/.test(content.slice(0, 2000))) return parseNfceXml(content);
+  return parseNfceHtml(content, sourceUrl);
+}
+
+function parseNfceHtml(html: string, sourceUrl: URL): ParsedReceipt {
   const $ = cheerio.load(html);
   const pageText = clean($("body").text());
 
@@ -72,12 +133,6 @@ export function parseNfceHtml(html: string, sourceUrl: URL): ParsedReceipt {
     taxAmount,
     items,
   });
-  if (!result.success) {
-    const problems = result.error.issues.map((i) => i.path.join(".") || i.message).join(", ");
-    throw new SefazError(
-      `Não consegui ler esta nota (campos com problema: ${problems}). O layout da SEFAZ do seu estado pode ser diferente.`,
-      "PARSE_FAILED",
-    );
-  }
+  if (!result.success) throw parseFailed(result.error);
   return result.data;
 }

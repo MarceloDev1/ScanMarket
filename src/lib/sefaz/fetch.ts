@@ -16,7 +16,7 @@ export async function fetchSefazPage(rawUrl: string): Promise<string> {
         signal: AbortSignal.timeout(TIMEOUT_MS),
         headers: {
           "User-Agent": "Mozilla/5.0 (compatible; PricePulse/1.0)",
-          Accept: "text/html,application/xhtml+xml",
+          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9",
         },
       });
     } catch {
