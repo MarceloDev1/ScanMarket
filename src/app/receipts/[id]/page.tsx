@@ -39,9 +39,20 @@ export default async function ReceiptDetailPage(props: PageProps<"/receipts/[id]
         ))}
       </ul>
 
-      <div className="mt-4 flex items-center justify-between rounded-2xl bg-accent p-4">
-        <span className="text-sm font-medium">Total</span>
-        <span className="text-xl font-bold">{formatBRL(receipt.total)}</span>
+      <div className="mt-4 rounded-2xl bg-accent p-4">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium">Total</span>
+          <span className="text-xl font-bold">{formatBRL(receipt.total)}</span>
+        </div>
+        {receipt.tax !== null && (
+          <div className="mt-2 flex items-center justify-between text-sm text-muted">
+            <span>Tributos incluídos</span>
+            <span>
+              {formatBRL(receipt.tax)}
+              {receipt.total > 0 && ` (${((receipt.tax / receipt.total) * 100).toFixed(1)}%)`}
+            </span>
+          </div>
+        )}
       </div>
     </>
   );

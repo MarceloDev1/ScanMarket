@@ -14,6 +14,7 @@ export const parsedReceiptSchema = z.object({
   cnpj: z.string().regex(/^\d{14}$/, "CNPJ inválido"),
   issuedAt: z.date(),
   totalAmount: z.number().nonnegative(),
+  taxAmount: z.number().nonnegative().nullable(),
   items: z.array(parsedItemSchema).min(1, "Nenhum item encontrado na nota"),
 });
 

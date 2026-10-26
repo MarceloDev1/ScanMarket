@@ -67,6 +67,7 @@ export async function saveReceipt(userId: string, sourceUrl: string, parsed: Par
         sefazUrl: sourceUrl,
         issuedAt: parsed.issuedAt,
         totalAmount: parsed.totalAmount,
+        taxAmount: parsed.taxAmount,
         items: { create: items },
       },
       select: { id: true, totalAmount: true, issuedAt: true, store: { select: { name: true } } },

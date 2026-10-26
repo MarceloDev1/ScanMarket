@@ -70,6 +70,7 @@ export async function getReceipt(id: string) {
       id: true,
       issuedAt: true,
       totalAmount: true,
+      taxAmount: true,
       store: { select: { name: true, cnpj: true } },
       items: {
         orderBy: { id: "asc" },
@@ -90,6 +91,7 @@ export async function getReceipt(id: string) {
     cnpj: r.store.cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5"),
     issuedAt: r.issuedAt.toISOString(),
     total: Number(r.totalAmount),
+    tax: r.taxAmount === null ? null : Number(r.taxAmount),
     items: r.items.map((i) => ({
       description: i.rawDescription,
       quantity: Number(i.quantity),

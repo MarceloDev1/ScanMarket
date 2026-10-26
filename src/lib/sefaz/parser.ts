@@ -56,12 +56,20 @@ export function parseNfceHtml(html: string, sourceUrl: URL): ParsedReceipt {
     parseBrNumber(pageText.match(/Valor a pagar R\$:?\s*([\d.,]+)/i)?.[1]) ??
     items.reduce((sum, item) => sum + item.totalPrice, 0);
 
+  // "Informação dos Tributos Totais Incidentes (Lei Federal 12.741/2012): 12,34"
+  const taxAmount =
+    parseBrNumber($("label:contains('Tributos')").first().next(".totalNumb").text()) ??
+    parseBrNumber(
+      pageText.match(/Tributos Totais Incidentes\s*(?:\([^)]*\))?\s*:?\s*(?:R\$)?\s*([\d.,]+)/i)?.[1],
+    );
+
   const result = parsedReceiptSchema.safeParse({
     accessKey,
     storeName,
     cnpj,
     issuedAt,
     totalAmount,
+    taxAmount,
     items,
   });
   if (!result.success) {
