@@ -1,0 +1,190 @@
+import { cache } from "react";
+import { redirect } from "next/navigation";
+import { db } from "@/lib/db";
+import { CATEGORY_LABELS } from "@/lib/categories";
+import { createClient } from "@/lib/supabase/server";
+
+export type PricePoint = { date: string; store: string; unitPrice: number };
+
+export type ProductSummary = {
+  id: string;
+  name: string;
+  brand: string | null;
+  category: string;
+  lastPrice: number;
+  firstPrice: number;
+  purchases: number;
+};
+
+const getUser = cache(async () => {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  return user;
+});
+
+/** The signed-in user's id; every query below is scoped to it. */
+export const requireUserId = async () => (await getUser()).id;
+
+export async function getUsername(): Promise<string | null> {
+  const username = (await getUser()).user_metadata?.username;
+  return typeof username === "string" ? username : null;
+}
+
+const itemSelect = {
+  quantity: true,
+  unitPrice: true,
+  product: { select: { id: true, name: true, brand: true, category: true } },
+  receipt: { select: { issuedAt: true, store: { select: { name: true } } } },
+} as const;
+
+export async function getReceipts() {
+  const userId = await requireUserId();
+  const rows = await db.receipt.findMany({
+    where: { userId },
+    orderBy: { issuedAt: "desc" },
+    select: {
+      id: true,
+      issuedAt: true,
+      totalAmount: true,
+      store: { select: { name: true } },
+      _count: { select: { items: true } },
+    },
+  });
+  return rows.map((r) => ({
+    id: r.id,
+    store: r.store.name,
+    issuedAt: r.issuedAt.toISOString(),
+    total: Number(r.totalAmount),
+    itemCount: r._count.items,
+  }));
+}
+
+export async function getReceipt(id: string) {
+  const userId = await requireUserId();
+  const r = await db.receipt.findFirst({
+    where: { id, userId },
+    select: {
+      id: true,
+      issuedAt: true,
+      totalAmount: true,
+      store: { select: { name: true, cnpj: true } },
+      items: {
+        orderBy: { id: "asc" },
+        select: {
+          rawDescription: true,
+          quantity: true,
+          unitPrice: true,
+          totalPrice: true,
+          product: { select: { id: true, name: true } },
+        },
+      },
+    },
+  });
+  if (!r) return null;
+  return {
+    id: r.id,
+    store: r.store.name,
+    cnpj: r.store.cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5"),
+    issuedAt: r.issuedAt.toISOString(),
+    total: Number(r.totalAmount),
+    items: r.items.map((i) => ({
+      description: i.rawDescription,
+      quantity: Number(i.quantity),
+      unitPrice: Number(i.unitPrice),
+      total: Number(i.totalPrice),
+      product: i.product,
+    })),
+  };
+}
+
+/** Every product the user has bought, with first/last unit price. */
+export async function getProducts(): Promise<ProductSummary[]> {
+  const userId = await requireUserId();
+  const items = await db.receiptItem.findMany({
+    where: { receipt: { userId }, productId: { not: null } },
+    orderBy: { receipt: { issuedAt: "asc" } },
+    select: itemSelect,
+  });
+
+  const byProduct = new Map<string, ProductSummary>();
+  for (const item of items) {
+    if (!item.product) continue;
+    const price = Number(item.unitPrice);
+    const current = byProduct.get(item.product.id);
+    if (current) {
+      current.lastPrice = price;
+      current.purchases += 1;
+    } else {
+      byProduct.set(item.product.id, {
+        id: item.product.id,
+        name: item.product.name,
+        brand: item.product.brand,
+        category: CATEGORY_LABELS[item.product.category],
+        firstPrice: price,
+        lastPrice: price,
+        purchases: 1,
+      });
+    }
+  }
+  return [...byProduct.values()].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+}
+
+export async function getProductWithHistory(productId: string) {
+  const userId = await requireUserId();
+  const items = await db.receiptItem.findMany({
+    where: { productId, receipt: { userId } },
+    orderBy: { receipt: { issuedAt: "asc" } },
+    select: itemSelect,
+  });
+  if (items.length === 0 || !items[0].product) return null;
+
+  const { product } = items[0];
+  const history: PricePoint[] = items.map((i) => ({
+    date: i.receipt.issuedAt.toISOString(),
+    store: i.receipt.store.name,
+    unitPrice: Number(i.unitPrice),
+  }));
+  return {
+    id: product.id,
+    name: product.name,
+    brand: product.brand,
+    category: CATEGORY_LABELS[product.category],
+    history,
+  };
+}
+
+/** Spending for the current month plus a per-category breakdown. */
+export async function getMonthSummary() {
+  const userId = await requireUserId();
+  const now = new Date();
+  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+
+  const [receipts, items] = await Promise.all([
+    db.receipt.aggregate({
+      where: { userId, issuedAt: { gte: monthStart } },
+      _sum: { totalAmount: true },
+      _count: true,
+    }),
+    db.receiptItem.findMany({
+      where: { receipt: { userId, issuedAt: { gte: monthStart } } },
+      select: { totalPrice: true, product: { select: { category: true } } },
+    }),
+  ]);
+
+  const byCategory = new Map<string, number>();
+  for (const item of items) {
+    const label = CATEGORY_LABELS[item.product?.category ?? "OTHER"];
+    byCategory.set(label, (byCategory.get(label) ?? 0) + Number(item.totalPrice));
+  }
+
+  return {
+    total: Number(receipts._sum.totalAmount ?? 0),
+    receiptCount: receipts._count,
+    byCategory: [...byCategory.entries()]
+      .map(([category, total]) => ({ category, total }))
+      .sort((a, b) => b.total - a.total),
+  };
+}

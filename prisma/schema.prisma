@@ -1,0 +1,92 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Category {
+  DAIRY
+  PRODUCE
+  MEAT
+  BAKERY
+  BEVERAGES
+  CLEANING
+  HYGIENE
+  GROCERIES
+  FROZEN
+  OTHER
+}
+
+model Store {
+  id        String    @id @default(cuid())
+  cnpj      String    @unique
+  name      String
+  receipts  Receipt[]
+  aliases   ProductAlias[]
+  createdAt DateTime  @default(now())
+}
+
+model Receipt {
+  id          String        @id @default(cuid())
+  // Supabase Auth user id (auth.users.id)
+  userId      String        @db.Uuid
+  storeId     String
+  store       Store         @relation(fields: [storeId], references: [id])
+  // 44-digit NFC-e access key; unique per user so a receipt can't be scanned twice
+  accessKey   String
+  sefazUrl    String
+  issuedAt    DateTime
+  totalAmount Decimal       @db.Decimal(12, 2)
+  items       ReceiptItem[]
+  createdAt   DateTime      @default(now())
+
+  @@unique([userId, accessKey])
+  @@index([userId, issuedAt])
+}
+
+model Product {
+  id             String        @id @default(cuid())
+  name           String
+  normalizedName String        @unique
+  brand          String?
+  category       Category      @default(OTHER)
+  aliases        ProductAlias[]
+  items          ReceiptItem[]
+  createdAt      DateTime      @default(now())
+
+  @@index([category])
+}
+
+// Maps a normalized raw description (optionally per store) to a master product.
+model ProductAlias {
+  id            String   @id @default(cuid())
+  productId     String
+  product       Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  storeId       String?
+  store         Store?   @relation(fields: [storeId], references: [id])
+  normalizedRaw String
+  createdAt     DateTime @default(now())
+
+  @@unique([storeId, normalizedRaw])
+  @@index([normalizedRaw])
+}
+
+model ReceiptItem {
+  id             String   @id @default(cuid())
+  receiptId      String
+  receipt        Receipt  @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  // Null until the item is matched to the master catalog
+  productId      String?
+  product        Product? @relation(fields: [productId], references: [id])
+  rawDescription String
+  quantity       Decimal  @db.Decimal(12, 3)
+  unit           String   @default("UN")
+  unitPrice      Decimal  @db.Decimal(12, 4)
+  totalPrice     Decimal  @db.Decimal(12, 2)
+
+  @@index([receiptId])
+  @@index([productId])
+}
