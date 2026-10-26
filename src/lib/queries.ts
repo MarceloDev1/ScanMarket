@@ -193,3 +193,47 @@ export async function getMonthSummary() {
       .sort((a, b) => b.total - a.total),
   };
 }
+
+/** Taxes (Lei 12.741) printed on the user's receipts, overall and by store and month. */
+export async function getTaxSummary() {
+  const userId = await requireUserId();
+  const rows = await db.receipt.findMany({
+    where: { userId, taxAmount: { not: null } },
+    orderBy: { issuedAt: "desc" },
+    select: {
+      issuedAt: true,
+      totalAmount: true,
+      taxAmount: true,
+      store: { select: { name: true } },
+    },
+  });
+
+  const group = (key: (r: (typeof rows)[number]) => string) => {
+    const map = new Map<string, { tax: number; spent: number; receipts: number }>();
+    for (const r of rows) {
+      const entry = map.get(key(r)) ?? { tax: 0, spent: 0, receipts: 0 };
+      entry.tax += Number(r.taxAmount);
+      entry.spent += Number(r.totalAmount);
+      entry.receipts += 1;
+      map.set(key(r), entry);
+    }
+    return [...map.entries()].map(([label, v]) => ({ label, ...v }));
+  };
+
+  const tax = rows.reduce((sum, r) => sum + Number(r.taxAmount), 0);
+  const spent = rows.reduce((sum, r) => sum + Number(r.totalAmount), 0);
+
+  return {
+    tax,
+    spent,
+    receiptCount: rows.length,
+    byMonth: group((r) =>
+      r.issuedAt.toLocaleDateString("en-CA", {
+        timeZone: "America/Sao_Paulo",
+        year: "numeric",
+        month: "2-digit",
+      }),
+    ),
+    byStore: group((r) => r.store.name).sort((a, b) => b.tax - a.tax),
+  };
+}

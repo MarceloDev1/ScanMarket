@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { DeleteReceiptButton } from "@/components/delete-receipt-button";
 import { PageHeader } from "@/components/page-header";
 import { formatBRL, formatDate } from "@/lib/utils";
 import { getReceipt } from "@/lib/queries";
@@ -53,6 +54,10 @@ export default async function ReceiptDetailPage(props: PageProps<"/receipts/[id]
             </span>
           </div>
         )}
+      </div>
+
+      <div className="mt-6">
+        <DeleteReceiptButton id={receipt.id} />
       </div>
     </>
   );

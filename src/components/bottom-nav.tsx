@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, LineChart, Receipt, ScanLine } from "lucide-react";
+import { Home, LineChart, Percent, Receipt, ScanLine } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const links = [
   { href: "/", label: "Início", icon: Home },
   { href: "/receipts", label: "Recibos", icon: Receipt },
   { href: "/products", label: "Preços", icon: LineChart },
+  { href: "/taxes", label: "Impostos", icon: Percent },
 ] as const;
 
 export function BottomNav() {
@@ -23,7 +24,7 @@ export function BottomNav() {
       aria-label="Navegação principal"
       className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-card/95 backdrop-blur"
     >
-      <ul className="mx-auto grid max-w-2xl grid-cols-4 items-end px-2 pb-[env(safe-area-inset-bottom)]">
+      <ul className="mx-auto grid max-w-2xl grid-cols-5 items-end px-2 pb-[env(safe-area-inset-bottom)]">
         {links.slice(0, 2).map((l) => (
           <NavItem key={l.href} {...l} active={isActive(l.href)} />
         ))}
@@ -39,7 +40,9 @@ export function BottomNav() {
             <ScanLine className="size-6" />
           </Link>
         </li>
-        <NavItem {...links[2]} active={isActive(links[2].href)} />
+        {links.slice(2).map((l) => (
+          <NavItem key={l.href} {...l} active={isActive(l.href)} />
+        ))}
       </ul>
     </nav>
   );
