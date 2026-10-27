@@ -11,10 +11,9 @@ const fail = (status: number, error: string, extra?: Record<string, unknown>) =>
 
 export async function POST(request: Request) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return fail(401, "Faça login para salvar notas.");
+  const { data } = await supabase.auth.getClaims();
+  const userId = data?.claims.sub;
+  if (!userId) return fail(401, "Faça login para salvar notas.");
 
   const body = scanRequestSchema.safeParse(await request.json().catch(() => null));
   if (!body.success) return fail(400, "Informe a URL da nota.");
@@ -23,7 +22,7 @@ export async function POST(request: Request) {
     const url = assertSefazUrl(body.data.url);
     const html = await fetchSefazPage(url.toString());
     const parsed = parseNfce(html, url);
-    const receipt = await saveReceipt(user.id, url.toString(), parsed);
+    const receipt = await saveReceipt(userId, url.toString(), parsed);
 
     return NextResponse.json(
       {

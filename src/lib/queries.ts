@@ -21,15 +21,14 @@ const getUser = cache(async () => {
   // Session loading reads the clock, so this must run at request time, never during prerender.
   await connection();
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-  return user;
+  // Verifies the JWT locally when the project uses asymmetric signing keys (no Auth round trip).
+  const { data } = await supabase.auth.getClaims();
+  if (!data?.claims.sub) redirect("/login");
+  return data.claims;
 });
 
 /** The signed-in user's id; every query below is scoped to it. */
-export const requireUserId = async () => (await getUser()).id;
+export const requireUserId = async () => (await getUser()).sub;
 
 export async function getUsername(): Promise<string | null> {
   const username = (await getUser()).user_metadata?.username;

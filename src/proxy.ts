@@ -27,10 +27,10 @@ export async function proxy(request: NextRequest) {
     },
   );
 
-  // getUser() validates the token with Supabase; getSession() would only trust the cookie.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // getClaims() verifies the JWT signature locally (cached JWKS) instead of calling the Auth
+  // server on every request like getUser() does; getSession() would only trust the cookie.
+  const { data } = await supabase.auth.getClaims();
+  const user = data?.claims ?? null;
 
   const { pathname } = request.nextUrl;
   // API routes answer 401 themselves instead of redirecting to an HTML page.

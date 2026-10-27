@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Suspense } from "react";
-import { BottomNav } from "@/components/bottom-nav";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -37,9 +36,6 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             {children}
           </Suspense>
         </main>
-        <Suspense fallback={null}>
-          <BottomNav />
-        </Suspense>
       </body>
     </html>
   );

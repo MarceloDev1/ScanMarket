@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Loader2, Trash2 } from "lucide-react";
-import { deleteReceipt } from "@/app/receipts/actions";
+import { deleteReceipt } from "@/app/(app)/receipts/actions";
 
 export function DeleteReceiptButton({ id }: { id: string }) {
   const [confirming, setConfirming] = useState(false);
