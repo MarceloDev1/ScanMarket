@@ -22,6 +22,11 @@ export function assertSefazUrl(raw: string): URL {
   } catch {
     throw new SefazError("URL inválida.", "INVALID_URL");
   }
+  // Many states (e.g. Pernambuco) print plain http:// links in the QR Code, but serve the same
+  // page over https, so upgrade before validating the rest.
+  if (url.protocol === "http:" && SEFAZ_HOST.test(url.hostname)) {
+    url.protocol = "https:";
+  }
   if (url.protocol !== "https:" || url.username || url.password) {
     throw new SefazError("A URL da nota precisa ser https e sem credenciais.", "INVALID_URL");
   }

@@ -74,7 +74,10 @@ function describeCameraError(error: unknown) {
 function isSefazUrl(value: string) {
   try {
     const url = new URL(value);
-    return url.protocol === "https:" && /(\.|^)(sefaz|fazenda)\./i.test(url.hostname);
+    // Same host rule as the server (assertSefazUrl); http is accepted and upgraded there.
+    return (
+      (url.protocol === "https:" || url.protocol === "http:") && /\.gov\.br$/i.test(url.hostname)
+    );
   } catch {
     return false;
   }
@@ -129,7 +132,7 @@ export function QrScanner() {
       } else {
         setState({
           status: "error",
-          message: "Esse QR Code não parece ser de uma nota fiscal (NFC-e). Tente outro.",
+          message: `Esse QR Code não parece ser de uma nota fiscal (NFC-e). Conteúdo lido: ${text.slice(0, 80)}`,
         });
       }
     },
