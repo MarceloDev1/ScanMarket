@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Html5Qrcode } from "html5-qrcode";
 import Link from "next/link";
-import { Camera, CameraOff, CheckCircle2, Loader2, X } from "lucide-react";
+import { Camera, CameraOff, CheckCircle2, Image as ImageIcon, Loader2, X } from "lucide-react";
 import { formatBRL } from "@/lib/utils";
 
 type ScannerState =
@@ -17,6 +17,41 @@ type ScannerState =
 type SavedReceipt = { id: string; store: string; total: number; itemCount: number };
 
 const READER_ID = "qr-reader";
+
+// NFC-e QR codes are dense and printed small on thermal paper, so the default
+// 640x480 stream and a fixed 250px box are too coarse to resolve the modules.
+const VIDEO_CONSTRAINTS: MediaTrackConstraints = {
+  facingMode: { ideal: "environment" },
+  width: { ideal: 1920 },
+  height: { ideal: 1080 },
+};
+
+// Photos from the native camera are ~12MP; decoding that is slow, so shrink first.
+const PHOTO_MAX_EDGE = 1600;
+
+async function loadScanner() {
+  const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import("html5-qrcode");
+  return new Html5Qrcode(READER_ID, {
+    verbose: false,
+    formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+    useBarCodeDetectorIfSupported: true,
+  });
+}
+
+async function downscalePhoto(file: File) {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, PHOTO_MAX_EDGE / Math.max(bitmap.width, bitmap.height));
+  if (scale === 1) return file;
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  canvas.getContext("2d")?.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  const blob = await new Promise<Blob | null>((resolve) =>
+    canvas.toBlob(resolve, "image/jpeg", 0.92),
+  );
+  return blob ? new File([blob], "receipt.jpg", { type: "image/jpeg" }) : file;
+}
 
 function describeCameraError(error: unknown) {
   const name = error instanceof Error ? error.name : String(error);
@@ -104,12 +139,18 @@ export function QrScanner() {
   const start = useCallback(async () => {
     setState({ status: "starting" });
     try {
-      const { Html5Qrcode } = await import("html5-qrcode");
-      const scanner = new Html5Qrcode(READER_ID);
+      const scanner = await loadScanner();
       scannerRef.current = scanner;
       await scanner.start(
         { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 250, height: 250 } },
+        {
+          fps: 10,
+          qrbox: (width, height) => {
+            const size = Math.floor(Math.min(width, height) * 0.8);
+            return { width: size, height: size };
+          },
+          videoConstraints: VIDEO_CONSTRAINTS,
+        },
         (text) => void handleResult(text),
         () => {},
       );
@@ -119,6 +160,35 @@ export function QrScanner() {
       setState({ status: "error", message: describeCameraError(error) });
     }
   }, [handleResult, stop]);
+
+  const scanPhoto = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    await stop();
+    setState({ status: "saving" });
+    let text: string | null = null;
+    try {
+      const scanner = await loadScanner();
+      try {
+        text = await scanner.scanFile(await downscalePhoto(file), false);
+      } catch {
+        // A small QR in a large photo can vanish when shrunk; retry at full size.
+        text = await scanner.scanFile(file, false).catch(() => null);
+      }
+      scanner.clear();
+    } catch {
+      text = null;
+    }
+    if (text) {
+      void handleResult(text);
+    } else {
+      setState({
+        status: "error",
+        message: "Não encontrei o QR Code na foto. Tire outra bem de perto, com o QR nítido e ocupando boa parte da imagem.",
+      });
+    }
+  };
 
   const reset = async () => {
     await stop();
@@ -210,6 +280,20 @@ export function QrScanner() {
           <Camera className="size-5" />
           {state.status === "done" ? "Escanear outra nota" : "Abrir câmera"}
         </button>
+      )}
+
+      {state.status !== "saving" && (
+        <label className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-border bg-card py-3 font-medium">
+          <ImageIcon className="size-5" />
+          Tirar foto do QR Code
+          <input
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={scanPhoto}
+            className="sr-only"
+          />
+        </label>
       )}
 
       <form onSubmit={submitManual} className="space-y-2">
