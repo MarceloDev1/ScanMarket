@@ -193,6 +193,47 @@ export async function getMonthSummary() {
   };
 }
 
+/** Everything the user spent across all receipts, totalled by year and by month (newest first). */
+export async function getSpendingSummary() {
+  const userId = await requireUserId();
+  const rows = await db.receipt.findMany({
+    where: { userId },
+    orderBy: { issuedAt: "desc" },
+    select: { issuedAt: true, totalAmount: true },
+  });
+
+  const byMonth = new Map<string, { total: number; receipts: number }>();
+  for (const r of rows) {
+    // "YYYY-MM" in São Paulo time, so late-night purchases land in the right month.
+    const key = r.issuedAt.toLocaleDateString("en-CA", {
+      timeZone: "America/Sao_Paulo",
+      year: "numeric",
+      month: "2-digit",
+    });
+    const entry = byMonth.get(key) ?? { total: 0, receipts: 0 };
+    entry.total += Number(r.totalAmount);
+    entry.receipts += 1;
+    byMonth.set(key, entry);
+  }
+
+  const byYear = new Map<string, { total: number; receipts: number; months: number }>();
+  for (const [key, month] of byMonth) {
+    const year = key.slice(0, 4);
+    const entry = byYear.get(year) ?? { total: 0, receipts: 0, months: 0 };
+    entry.total += month.total;
+    entry.receipts += month.receipts;
+    entry.months += 1;
+    byYear.set(year, entry);
+  }
+
+  return {
+    total: rows.reduce((sum, r) => sum + Number(r.totalAmount), 0),
+    receiptCount: rows.length,
+    byYear: [...byYear.entries()].map(([label, v]) => ({ label, ...v })),
+    byMonth: [...byMonth.entries()].map(([label, v]) => ({ label, ...v })),
+  };
+}
+
 /** Taxes (Lei 12.741) printed on the user's receipts, overall and by store and month. */
 export async function getTaxSummary() {
   const userId = await requireUserId();

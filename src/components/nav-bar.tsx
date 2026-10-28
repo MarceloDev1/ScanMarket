@@ -1,13 +1,17 @@
 import Link from "next/link";
-import { Home, LineChart, Percent, Receipt, ScanLine } from "lucide-react";
+import { Home, LineChart, Percent, Receipt, ScanLine, Wallet } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const links = [
   { href: "/", label: "Início", icon: Home },
   { href: "/receipts", label: "Recibos", icon: Receipt },
+  { href: "/spending", label: "Gastos", icon: Wallet },
   { href: "/products", label: "Preços", icon: LineChart },
   { href: "/taxes", label: "Impostos", icon: Percent },
 ] as const;
+
+// Tabs left of the scan button; the rest go to its right.
+const LEFT_TABS = 3;
 
 /** Presentational bar: renders in the static shell, with no highlight when `pathname` is null. */
 export function NavBar({ pathname }: { pathname: string | null }) {
@@ -19,8 +23,9 @@ export function NavBar({ pathname }: { pathname: string | null }) {
       aria-label="Navegação principal"
       className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-card/95 backdrop-blur"
     >
-      <ul className="mx-auto grid max-w-2xl grid-cols-5 items-end px-2 pb-[env(safe-area-inset-bottom)]">
-        {links.slice(0, 2).map((l) => (
+      {/* 3 tabs | scan | 2 tabs: the right tabs are wider so the scan button stays centered. */}
+      <ul className="mx-auto grid max-w-2xl grid-cols-[1fr_1fr_1fr_auto_1.5fr_1.5fr] items-end px-2 pb-[env(safe-area-inset-bottom)]">
+        {links.slice(0, LEFT_TABS).map((l) => (
           <NavItem key={l.href} {...l} active={isActive(l.href)} />
         ))}
         <li className="flex justify-center pb-2">
@@ -35,7 +40,7 @@ export function NavBar({ pathname }: { pathname: string | null }) {
             <ScanLine className="size-6" />
           </Link>
         </li>
-        {links.slice(2).map((l) => (
+        {links.slice(LEFT_TABS).map((l) => (
           <NavItem key={l.href} {...l} active={isActive(l.href)} />
         ))}
       </ul>
