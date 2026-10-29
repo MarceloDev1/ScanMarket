@@ -1,11 +1,48 @@
 import { db } from "@/lib/db";
 import { guessCategory, normalizeDescription } from "@/lib/normalize";
+import { fetchSefazPage } from "@/lib/sefaz/fetch";
+import { parseNfce } from "@/lib/sefaz/parser";
 import type { ParsedReceipt } from "@/lib/sefaz/schema";
+import { assertSefazUrl, SefazError } from "@/lib/sefaz/url";
 
 export class DuplicateReceiptError extends Error {
   constructor(readonly receiptId: string) {
     super("Esta nota já foi escaneada.");
     this.name = "DuplicateReceiptError";
+  }
+}
+
+/**
+ * Full scan pipeline for a QR Code URL. The URL is stored first, so the user keeps access to it
+ * even if SEFAZ is down or the page can't be parsed; the outcome is recorded on the link.
+ */
+export async function importReceipt(userId: string, rawUrl: string) {
+  const url = assertSefazUrl(rawUrl).toString();
+  const where = { userId_url: { userId, url } };
+  await db.scannedLink.upsert({
+    where,
+    update: { status: "PENDING", error: null },
+    create: { userId, url },
+  });
+
+  try {
+    const parsed = parseNfce(await fetchSefazPage(url), new URL(url));
+    const receipt = await saveReceipt(userId, url, parsed);
+    await db.scannedLink.update({
+      where,
+      data: { status: "SAVED", error: null, receiptId: receipt.id },
+    });
+    return { receipt, itemCount: parsed.items.length };
+  } catch (error) {
+    const outcome =
+      error instanceof DuplicateReceiptError
+        ? { status: "SAVED" as const, error: null, receiptId: error.receiptId }
+        : {
+            status: "FAILED" as const,
+            error: error instanceof SefazError ? error.message : "Erro inesperado ao salvar a nota.",
+          };
+    await db.scannedLink.update({ where, data: outcome }).catch(() => {});
+    throw error;
   }
 }
 

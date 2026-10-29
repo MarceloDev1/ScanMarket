@@ -43,10 +43,36 @@ model Receipt {
   // Total taxes (Lei 12.741/2012) printed on the NFC-e; null when the page doesn't show it
   taxAmount   Decimal?      @db.Decimal(12, 2)
   items       ReceiptItem[]
+  links       ScannedLink[]
   createdAt   DateTime      @default(now())
 
   @@unique([userId, accessKey])
   @@index([userId, issuedAt])
+}
+
+enum LinkStatus {
+  // Saved on scan, SEFAZ not read yet
+  PENDING
+  // Receipt imported
+  SAVED
+  // SEFAZ fetch/parse failed; the URL is kept so it can be opened or retried
+  FAILED
+}
+
+// Every NFC-e URL read from a QR Code, stored before the SEFAZ page is fetched so it survives failures.
+model ScannedLink {
+  id        String     @id @default(cuid())
+  userId    String     @db.Uuid
+  url       String
+  status    LinkStatus @default(PENDING)
+  error     String?
+  receiptId String?
+  receipt   Receipt?   @relation(fields: [receiptId], references: [id], onDelete: SetNull)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@unique([userId, url])
+  @@index([userId, status])
 }
 
 model Product {

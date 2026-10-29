@@ -114,9 +114,12 @@ export function QrScanner() {
       if (response.ok) {
         setState({ status: "done", summary: data as SavedReceipt });
       } else {
+        const message = data.error ?? "Não foi possível salvar a nota. Tente novamente.";
         setState({
           status: "error",
-          message: data.error ?? "Não foi possível salvar a nota. Tente novamente.",
+          message: data.linkSaved
+            ? `${message} O link foi salvo em Recibos, onde você pode abri-lo ou tentar de novo.`
+            : message,
         });
       }
     } catch {

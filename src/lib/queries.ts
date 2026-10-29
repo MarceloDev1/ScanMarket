@@ -64,6 +64,22 @@ export async function getReceipts() {
   }));
 }
 
+/** Scanned QR links that never became a receipt (SEFAZ failed or still pending). */
+export async function getUnimportedLinks() {
+  const userId = await requireUserId();
+  const rows = await db.scannedLink.findMany({
+    where: { userId, status: { not: "SAVED" } },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, url: true, error: true, createdAt: true },
+  });
+  return rows.map((l) => ({
+    id: l.id,
+    url: l.url,
+    error: l.error,
+    scannedAt: l.createdAt.toISOString(),
+  }));
+}
+
 export async function getReceipt(id: string) {
   const userId = await requireUserId();
   const r = await db.receipt.findFirst({
@@ -73,6 +89,7 @@ export async function getReceipt(id: string) {
       issuedAt: true,
       totalAmount: true,
       taxAmount: true,
+      sefazUrl: true,
       store: { select: { name: true, cnpj: true } },
       items: {
         orderBy: { id: "asc" },
@@ -94,6 +111,7 @@ export async function getReceipt(id: string) {
     issuedAt: r.issuedAt.toISOString(),
     total: Number(r.totalAmount),
     tax: r.taxAmount === null ? null : Number(r.taxAmount),
+    sefazUrl: r.sefazUrl,
     items: r.items.map((i) => ({
       description: i.rawDescription,
       quantity: Number(i.quantity),

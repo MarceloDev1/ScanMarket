@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ExternalLink } from "lucide-react";
 import { DeleteReceiptButton } from "@/components/delete-receipt-button";
 import { PageHeader } from "@/components/page-header";
 import { formatBRL, formatDate } from "@/lib/utils";
@@ -56,7 +57,17 @@ export default async function ReceiptDetailPage(props: PageProps<"/receipts/[id]
         )}
       </div>
 
-      <div className="mt-6">
+      <a
+        href={receipt.sefazUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-4 flex items-center justify-center gap-2 rounded-xl border border-border bg-card py-3 text-sm font-medium"
+      >
+        <ExternalLink className="size-4" />
+        Abrir nota na SEFAZ
+      </a>
+
+      <div className="mt-3">
         <DeleteReceiptButton id={receipt.id} />
       </div>
     </>
