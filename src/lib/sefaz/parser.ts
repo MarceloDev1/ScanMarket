@@ -82,12 +82,12 @@ function parseNfceXml(xml: string): ParsedReceipt {
  * or the HTML page most states share (`#tabResult`, `.txtTit`, `.Rqtd`, `.RUN`, `.RvlUnit`,
  * `.valor`); layouts that differ fail with PARSE_FAILED instead of saving partial data.
  */
-export function parseNfce(content: string, sourceUrl: URL): ParsedReceipt {
+export function parseNfce(content: string, sourceUrl?: URL): ParsedReceipt {
   if (/^\s*<\?xml|<NFe[\s>]/.test(content.slice(0, 2000))) return parseNfceXml(content);
   return parseNfceHtml(content, sourceUrl);
 }
 
-function parseNfceHtml(html: string, sourceUrl: URL): ParsedReceipt {
+function parseNfceHtml(html: string, sourceUrl?: URL): ParsedReceipt {
   const $ = cheerio.load(html);
   const pageText = clean($("body").text());
 
@@ -96,7 +96,9 @@ function parseNfceHtml(html: string, sourceUrl: URL): ParsedReceipt {
   const issuedAt = parseBrDate(pageText.match(/Emiss[ãa]o:?\s*([\d/]+\s+[\d:]+)/i)?.[1] ?? "");
 
   const accessKey =
-    extractAccessKey(sourceUrl) ?? pageText.replace(/\s/g, "").match(/\d{44}/)?.[0] ?? "";
+    (sourceUrl ? extractAccessKey(sourceUrl) : null) ??
+    pageText.replace(/\s/g, "").match(/\d{44}/)?.[0] ??
+    "";
 
   const items: ParsedItem[] = $("#tabResult tr")
     .toArray()

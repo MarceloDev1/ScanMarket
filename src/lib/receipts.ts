@@ -46,6 +46,34 @@ export async function importReceipt(userId: string, rawUrl: string) {
   }
 }
 
+/**
+ * Imports a receipt page the user opened and saved in their own browser (for states that block
+ * our server). `sourceUrl` is the page's original address when known; its link is marked saved.
+ */
+export async function importSavedReceipt(userId: string, content: string, sourceUrl: string | null) {
+  const url = sourceUrl ? assertSefazUrl(sourceUrl).toString() : null;
+  const parsed = parseNfce(content, url ? new URL(url) : undefined);
+
+  const markLinkSaved = (receiptId: string) =>
+    url
+      ? db.scannedLink.upsert({
+          where: { userId_url: { userId, url } },
+          update: { status: "SAVED", error: null, receiptId },
+          create: { userId, url, status: "SAVED", receiptId },
+        })
+      : null;
+
+  try {
+    // A page with no known address has nothing to reopen; the receipt keeps an empty URL.
+    const receipt = await saveReceipt(userId, url ?? "", parsed);
+    await markLinkSaved(receipt.id);
+    return { receipt, itemCount: parsed.items.length };
+  } catch (error) {
+    if (error instanceof DuplicateReceiptError) await markLinkSaved(error.receiptId);
+    throw error;
+  }
+}
+
 /** Saves a parsed receipt for a user, matching each item to the master catalog. */
 export async function saveReceipt(userId: string, sourceUrl: string, parsed: ParsedReceipt) {
   const existing = await db.receipt.findUnique({

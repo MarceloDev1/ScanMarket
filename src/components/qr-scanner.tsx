@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Html5Qrcode } from "html5-qrcode";
 import Link from "next/link";
-import { Camera, CameraOff, CheckCircle2, Image as ImageIcon, Loader2, X } from "lucide-react";
+import { Camera, CameraOff, CheckCircle2, FileUp, Image as ImageIcon, Loader2, X } from "lucide-react";
+import { SAVED_PAGE_ACCEPT, uploadSavedReceipt } from "@/lib/sefaz/saved-page";
 import { formatBRL } from "@/lib/utils";
 
 type ScannerState =
@@ -196,6 +197,20 @@ export function QrScanner() {
     }
   };
 
+  const importPage = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    await stop();
+    setState({ status: "saving" });
+    const result = await uploadSavedReceipt(file);
+    setState(
+      result.ok
+        ? { status: "done", summary: result.receipt }
+        : { status: "error", message: result.error },
+    );
+  };
+
   const reset = async () => {
     await stop();
     setState({ status: "idle" });
@@ -300,6 +315,25 @@ export function QrScanner() {
             className="sr-only"
           />
         </label>
+      )}
+
+      {state.status !== "saving" && (
+        <div className="space-y-1">
+          <label className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-border bg-card py-3 font-medium">
+            <FileUp className="size-5" />
+            Importar página salva da nota
+            <input
+              type="file"
+              accept={SAVED_PAGE_ACCEPT}
+              onChange={importPage}
+              className="sr-only"
+            />
+          </label>
+          <p className="text-center text-xs text-muted">
+            Para estados que bloqueiam o app (SP, RJ): abra o link da nota no navegador, salve a página
+            (Chrome: ⋮ → baixar) e envie o arquivo aqui.
+          </p>
+        </div>
       )}
 
       <form onSubmit={submitManual} className="space-y-2">

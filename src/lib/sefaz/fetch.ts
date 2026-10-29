@@ -22,6 +22,8 @@ export async function fetchSefazPage(rawUrl: string): Promise<string> {
       });
     } catch (error) {
       const timedOut = error instanceof Error && error.name === "TimeoutError";
+      // The user only sees a generic message; keep the network cause (e.g. ECONNRESET) in the logs.
+      console.warn("SEFAZ fetch failed", url.hostname, error instanceof Error ? error.cause ?? error : error);
       throw new SefazError(
         timedOut
           ? "A SEFAZ não respondeu a tempo. Pode ser instabilidade ou bloqueio do servidor; tente novamente em instantes."

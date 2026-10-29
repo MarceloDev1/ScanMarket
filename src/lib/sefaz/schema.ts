@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAX_SAVED_PAGE_CHARS } from "./saved-page";
 
 export const parsedItemSchema = z.object({
   description: z.string().min(1),
@@ -23,4 +24,12 @@ export type ParsedReceipt = z.infer<typeof parsedReceiptSchema>;
 
 export const scanRequestSchema = z.object({
   url: z.string().url().max(2048),
+});
+
+export const importRequestSchema = z.object({
+  content: z.string().min(1).max(MAX_SAVED_PAGE_CHARS),
+  // Original page address found in the saved file, if any.
+  sourceUrl: z.string().max(2048).nullish(),
+  // The saved link this page belongs to (Recibos → "Links salvos sem nota").
+  linkId: z.string().max(64).nullish(),
 });

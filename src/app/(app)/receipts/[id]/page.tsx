@@ -57,15 +57,18 @@ export default async function ReceiptDetailPage(props: PageProps<"/receipts/[id]
         )}
       </div>
 
-      <a
-        href={receipt.sefazUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="mt-4 flex items-center justify-center gap-2 rounded-xl border border-border bg-card py-3 text-sm font-medium"
-      >
-        <ExternalLink className="size-4" />
-        Abrir nota na SEFAZ
-      </a>
+      {/* Empty for receipts imported from a saved page whose address wasn't recorded. */}
+      {receipt.sefazUrl && (
+        <a
+          href={receipt.sefazUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-4 flex items-center justify-center gap-2 rounded-xl border border-border bg-card py-3 text-sm font-medium"
+        >
+          <ExternalLink className="size-4" />
+          Abrir nota na SEFAZ
+        </a>
+      )}
 
       <div className="mt-3">
         <DeleteReceiptButton id={receipt.id} />
