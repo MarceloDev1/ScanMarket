@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { db } from "@/lib/db";
 import { CATEGORY_LABELS } from "@/lib/categories";
+import { hourlyMinimumWage, minimumWageHours } from "@/lib/minimum-wage";
 import { createClient } from "@/lib/supabase/server";
 
 export type PricePoint = { date: string; store: string; unitPrice: number };
@@ -266,13 +267,21 @@ export async function getTaxSummary() {
     },
   });
 
+  // Each receipt is converted at the minimum wage of the year it was issued.
+  const hoursOf = (r: (typeof rows)[number]) =>
+    minimumWageHours(
+      Number(r.taxAmount),
+      Number(r.issuedAt.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric" })),
+    );
+
   const group = (key: (r: (typeof rows)[number]) => string) => {
-    const map = new Map<string, { tax: number; spent: number; receipts: number }>();
+    const map = new Map<string, { tax: number; spent: number; receipts: number; hours: number }>();
     for (const r of rows) {
-      const entry = map.get(key(r)) ?? { tax: 0, spent: 0, receipts: 0 };
+      const entry = map.get(key(r)) ?? { tax: 0, spent: 0, receipts: 0, hours: 0 };
       entry.tax += Number(r.taxAmount);
       entry.spent += Number(r.totalAmount);
       entry.receipts += 1;
+      entry.hours += hoursOf(r);
       map.set(key(r), entry);
     }
     return [...map.entries()].map(([label, v]) => ({ label, ...v }));
@@ -284,6 +293,8 @@ export async function getTaxSummary() {
   return {
     tax,
     spent,
+    hours: rows.reduce((sum, r) => sum + hoursOf(r), 0),
+    currentHourlyWage: hourlyMinimumWage(new Date().getFullYear()),
     receiptCount: rows.length,
     byMonth: group((r) =>
       r.issuedAt.toLocaleDateString("en-CA", {
